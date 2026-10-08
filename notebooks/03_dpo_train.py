@@ -30,6 +30,7 @@ sys.path.insert(0, str(ROOT))
 
 import unsloth  # noqa: F401
 import torch
+import time
 
 from lab22 import config as C
 from lab22 import data as D
@@ -40,6 +41,8 @@ assert C.SFT_MERGED.exists(), f"Run NB1 first: {C.SFT_MERGED} missing"
 assert (C.PREF_DIR / "train.parquet").exists(), "Run NB2 first"
 C.ensure_dirs()
 print(C.summary())
+torch.cuda.reset_peak_memory_stats()
+nb3_started = time.perf_counter()
 
 # %% [markdown]
 # ## 1. Mô hình đang học (policy) = SFT đã gộp + LoRA mới
@@ -76,8 +79,12 @@ trainer = DPOTrainer(
     eval_dataset=eval_ds,
     processing_class=tokenizer,
 )
+train_started = time.perf_counter()
 result = trainer.train()
+train_seconds = time.perf_counter() - train_started
 final_eval = trainer.evaluate()
+nb3_seconds = time.perf_counter() - nb3_started
+nb3_peak_vram_gb = torch.cuda.max_memory_allocated() / 1e9
 print(f"train loss {result.training_loss:.4f} · held-out reward accuracy "
       f"{final_eval.get('eval_rewards/accuracies', float('nan')):.3f}")
 
@@ -118,6 +125,12 @@ def last(df, col):
     return float(df[col].iloc[-1]) if not df.empty and col in df else None
 
 
+def reward_rows(df):
+    if df.empty:
+        return []
+    return json.loads(df[["step", "rewards/chosen", "rewards/rejected"]].to_json(orient="records"))
+
+
 metrics = {
     "compute_tier": C.COMPUTE_TIER,
     "base_model": C.BASE_MODEL,
@@ -127,6 +140,9 @@ metrics = {
     "lr": C.DPO_LR,
     "loss_type": C.DPO_LOSS,
     "epochs": C.DPO_EPOCHS,
+    "train_seconds": train_seconds,
+    "nb3_wall_seconds": nb3_seconds,
+    "peak_vram_gb": nb3_peak_vram_gb,
     "final_train_loss": float(result.training_loss),
     "first_logged_loss": first_loss,
     "end_chosen_reward": last(train_hist, "rewards/chosen"),
@@ -137,6 +153,8 @@ metrics = {
     "eval_reward_gap": final_eval.get("eval_rewards/margins"),
     "eval_reward_accuracy": final_eval.get("eval_rewards/accuracies"),
     "diagnosis": label,
+    "train_reward_history": reward_rows(train_hist),
+    "eval_reward_history": reward_rows(eval_hist),
 }
 (C.DPO_ADAPTER / "dpo_metrics.json").write_text(json.dumps(metrics, indent=2))
 print(json.dumps(metrics, indent=2))

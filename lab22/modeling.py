@@ -175,8 +175,13 @@ def diagnose(df, window: int = 3) -> tuple[str, str]:
             f"Margin {margin:+.3f} > 0 but chosen reward {chosen:+.3f} < 0: the gap grew "
             "because rejected fell faster. Compare with RPO in NB3b."
         )
-    if chosen > 0:
+    if chosen > 0 and rejected < 0:
         return "INTENDED", f"Chosen {chosen:+.3f} up, rejected {rejected:+.3f}, margin {margin:+.3f}."
+    if chosen > 0 and rejected >= 0:
+        return "AMBIGUOUS", (
+            f"Chosen {chosen:+.3f} and rejected {rejected:+.3f} both increased; "
+            f"margin {margin:+.3f} alone does not show the intended chosen-up/rejected-down pattern."
+        )
     return "AMBIGUOUS", f"Margin {margin:+.3f} with flat chosen reward; train longer or raise lr."
 
 

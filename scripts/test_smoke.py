@@ -48,3 +48,11 @@ def test_colab_bundles_are_valid_and_current():
     for tier, path in (("T4", "Lab22_DPO_T4.ipynb"), ("BIGGPU", "Lab22_DPO_BigGPU.ipynb")):
         on_disk = json.loads((REPO / "colab" / path).read_text(encoding="utf-8"))
         assert on_disk == render(tier), f"colab/{path} is stale: run `make colab`"
+
+    core_path = REPO / "colab" / "Lab22_DPO_T4_Core.ipynb"
+    core = json.loads(core_path.read_text(encoding="utf-8"))
+    assert core == render("T4", core_only=True), f"{core_path} is stale: run `make colab`"
+    sources = ["".join(cell["source"]) for cell in core["cells"]]
+    assert not any("03b_dpo_variants.py" in source for source in sources)
+    assert not any("llama-cpp-python" in source or "lm-eval[" in source for source in sources)
+    assert any("nb0_nb4_results.zip" in source for source in sources)

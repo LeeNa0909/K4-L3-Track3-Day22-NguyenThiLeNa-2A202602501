@@ -1,0 +1,11 @@
+{
+  "source": "Lab22_DPO_T4_executed.ipynb, NB2 output cells 54 and 56",
+  "dataset": "sailor2/sea-ultrafeedback-onpolicy",
+  "language": "Vietnamese",
+  "n_train": 200,
+  "n_eval": 100,
+  "chosen_median_tokens": 119,
+  "rejected_median_tokens": 100,
+  "chosen_longer_frac": 0.605,
+  "note": "Reconstructed from printed notebook output; not the original data/pref/stats.json."
+}

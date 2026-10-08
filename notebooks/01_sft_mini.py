@@ -26,6 +26,7 @@ sys.path.insert(0, str(ROOT))
 
 import unsloth  # noqa: F401  (must load before trl/transformers)
 import torch
+import time
 
 from lab22 import config as C
 from lab22 import modeling as MD
@@ -75,6 +76,7 @@ print(ds[0]["text"][:400])
 from trl import SFTConfig, SFTTrainer
 from unsloth.chat_templates import train_on_responses_only
 
+torch.cuda.reset_peak_memory_stats()
 trainer = SFTTrainer(
     model=model,
     processing_class=tokenizer,
@@ -103,7 +105,10 @@ trainer = train_on_responses_only(
     instruction_part="<|im_start|>user\n",
     response_part="<|im_start|>assistant\n",
 )
+sft_started = time.perf_counter()
 result = trainer.train()
+sft_train_seconds = time.perf_counter() - sft_started
+sft_peak_vram_gb = torch.cuda.max_memory_allocated() / 1e9
 print(f"Final SFT loss: {result.training_loss:.4f}")
 
 # %%
@@ -111,6 +116,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 logs = pd.DataFrame([r for r in trainer.state.log_history if "loss" in r])
+if len(logs) >= 2 and logs["loss"].tail(3).mean() >= logs["loss"].head(3).mean():
+    print("WARNING: SFT loss did not decrease; check GPU/data before NB3.")
 fig, ax = plt.subplots(figsize=(8, 3.5))
 ax.plot(logs["step"], logs["loss"], color="#2e548a")
 ax.set_xlabel("step")
@@ -128,6 +135,19 @@ plt.show()
 model.save_pretrained(str(C.SFT_ADAPTER))
 tokenizer.save_pretrained(str(C.SFT_ADAPTER))
 model.save_pretrained_merged(str(C.SFT_MERGED), tokenizer, save_method="merged_16bit")
+import json
+
+(C.SFT_ADAPTER / "sft_metrics.json").write_text(json.dumps({
+    "base_model": C.BASE_MODEL,
+    "dataset": C.SFT_DATASET,
+    "n_train": len(ds),
+    "epochs": 1,
+    "train_seconds": sft_train_seconds,
+    "peak_vram_gb": sft_peak_vram_gb,
+    "first_logged_loss": float(logs["loss"].iloc[0]),
+    "last_logged_loss": float(logs["loss"].iloc[-1]),
+    "training_loss": float(result.training_loss),
+}, indent=2))
 print(f"Saved adapter → {C.SFT_ADAPTER}\nSaved merged 16-bit → {C.SFT_MERGED}")
 
 # %%
