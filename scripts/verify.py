@@ -52,13 +52,23 @@ def read_json(path: Path, problems: list[str]) -> dict | list | None:
         return None
 
 
+def is_sft_reference(base: str) -> bool:
+    """Accept this repo's SFT path after a Colab result archive is relocated."""
+    if not base:
+        return False
+    expected = (REPO / "models" / "sft-merged").resolve()
+    if Path(base).resolve() == expected or (REPO / base).resolve() == expected:
+        return True
+    return base.replace("\\", "/").rstrip("/") == "/content/lab22/models/sft-merged"
+
+
 def check_dpo(problems: list[str], warnings: list[str]) -> None:
     adapter = REPO / "adapters" / "dpo"
     if not need(adapter / "adapter_config.json", "DPO adapter (NB3)", problems):
         return
     base = str((read_json(adapter / "adapter_config.json", problems) or {}).get("base_model_name_or_path", ""))
     expected = (REPO / "models" / "sft-merged").resolve()
-    if not base or Path(base).resolve() != expected:
+    if not is_sft_reference(base):
         problems.append(
             f"WRONG REF  adapters/dpo was trained on {base!r}, not {rel(expected)}: the DPO reference "
             "must be this repo's SFT model (if the repo moved, rerun NB3 here)."

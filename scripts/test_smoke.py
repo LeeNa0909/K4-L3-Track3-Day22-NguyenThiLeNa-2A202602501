@@ -56,3 +56,11 @@ def test_colab_bundles_are_valid_and_current():
     assert not any("03b_dpo_variants.py" in source for source in sources)
     assert not any("llama-cpp-python" in source or "lm-eval[" in source for source in sources)
     assert any("nb0_nb4_results.zip" in source for source in sources)
+
+
+def test_verify_accepts_relocated_colab_sft_reference():
+    from verify import is_sft_reference
+
+    assert is_sft_reference("/content/lab22/models/sft-merged")
+    assert is_sft_reference(str(REPO / "models" / "sft-merged"))
+    assert not is_sft_reference("unsloth/Qwen3-4B-Instruct-2507-unsloth-bnb-4bit")
